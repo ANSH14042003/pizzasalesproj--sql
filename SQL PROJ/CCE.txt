@@ -1,3 +1,285 @@
+##AWS Load Balancer Setup Guide (Application Load Balancer)
+This guide walks through setting up an Application Load Balancer in AWS with two Amazon Linux EC2 instances. The goal is to distribute incoming traffic across multiple instances for better scalability and availability.
+
+1. Launch EC2 Instances
+Create 2 EC2 instances:
+
+AMI: Amazon Linux (Ubuntu also works, but install Apache2 instead).
+Select two different subnets, each in a different Availability Zone (AZ).
+Edit network settings:
+Add Security Group with HTTP (port 80) and SSH (port 22) enabled.
+Setup HTTP server on each instance:
+
+Use the following User Data script during instance launch or run manually via SSH:
+#!/bin/bash
+yum update -y
+yum install httpd -y   # For Ubuntu, use: apt install apache2 -y
+systemctl start httpd
+systemctl enable httpd
+echo "IP Address: $(hostname -I)" > /var/www/html/index.html
+systemctl restart httpd
+2. Create Target Group
+Navigate to EC2 Dashboard → Target Groups.
+Click Create target group.
+Type: Choose Instances.
+Provide a name for your Target Group (e.g., my-tg).
+Protocol: HTTP
+IP address type: IPv4
+VPC: Select your VPC.
+Protocol version: HTTP1 (slow) or HTTP2 (fast) — choose as per requirement.
+Health check settings:
+Protocol: HTTP
+Path: /
+Click Next, then:
+Add your previously launched EC2 instances.
+Click Register to attach instances to the Target Group.
+3. Create Application Load Balancer (ALB)
+Go to EC2 Dashboard → Load Balancers.
+
+Click Create Load Balancer → Select Application Load Balancer.
+
+Name your load balancer.
+
+Scheme:
+
+Internet-facing (for public access)
+Internal (for private access within VPC)
+Availability Zones:
+
+Select all AZs where your EC2 instances are running.
+Security Group:
+
+Create a new Security Group or select an existing one.
+Allow:
+HTTP (port 80)
+SSH (port 22)
+Listener and Routing:
+
+Listener protocol: HTTP on port 80
+Default action: Forward to your Target Group created earlier.
+Click Create Load Balancer.
+
+4. Access Your Server
+After the ALB is successfully created:
+Go to Load Balancers → Your ALB.
+Copy the DNS name from the description tab.
+Paste it into your browser.
+You're using a Load Balancer to distribute incoming traffic between two EC2 instances. When you "access the server", you're actually visiting the Load Balancer, not the EC2s directly. The Load Balancer then forwards your request to one of the instances based on its algorithm.
+You should see one of the two instance pages (showing hostname/IP) — this verifies load balancing is working.
+when you refresh or open it in incognito then you might be see the ip address will be change due to this line.
+echo "IP Address: $(hostname -I)" > /var/www/html/index.html
+
+##Amazon RDS (SQL Database) Setup
+Steps to Create an RDS Database
+1. Create an RDS Database:
+Go to AWS RDS Console → Click Create Database.
+Choose Standard (manual settings) or Easy Create (default settings).
+Select Database Engine: MySQL.
+Choose Version (with or without Multi-AZ deployment).
+Enable RDS Extended Support (optional).
+Select Template: Production, Development, or Free Tier.
+Configure Availability Zone:
+Single Zone (for cost-effectiveness).
+Multi-AZ (for high availability).
+Set DB Instance Identifier (Database Name).
+Enter Master Username.
+Set Password (AWS-generated or User-defined).
+Choose Instance Class:
+Burstable Class (t4.micro, t3.micro for Free Tier).
+Configure Storage:
+Type: General Purpose (gp3/gp2) or Provisioned IOPS (io1).
+Allocation: 20GB (default).
+Enable Auto Scaling (if needed).
+Configure Connectivity:
+Choose VPC.
+Enable/Disable Public Access:
+EC2 → No (for security).
+Terminal → Yes (for direct access).
+Configure VPC Security Group:
+Allow port 3306 for MySQL.
+(Optional) Enable RDS Proxy.
+Set Certificate (default AWS SSL certificate).
+Set Backup Settings:
+Backup Period (default or custom).
+Delete Protection (Enable → No accidental deletion).
+Click Create Database and wait for it to initialize.
+Connecting to RDS from Different Environments
+Connecting to RDS from Different Environments
+1. Connect via Terminal (MariaDB Client)
+Download MariaDB Client:
+sudo yum install -y mariadb105
+Connect to RDS:
+mysql -h <endpoint> -u <username> -p <password> -P <port>
+Replace <endpoint> with the RDS endpoint (found in the AWS console).
+Default port: 3306.
+
+
+##AWS CloudWatch Setup
+Steps to Create a CloudWatch Dashboard and Set Up Alarms
+1. Create a CloudWatch Dashboard:
+Navigate to CloudWatch Console → Click Dashboards.
+Click Create Dashboard.
+Enter a Dashboard Name.
+Select the Widget Type (e.g., Line, Table, Number).
+Choose the AWS Service to monitor.
+Select the metric By Name or By Resource.
+Click Create to finalize the dashboard.
+2. Create a CloudWatch Alarm:
+Go to CloudWatch Console → Click Alarms.
+Click Create Alarm.
+Select a Metric (e.g., CPU Utilization for EC2).
+Choose a Time Period (e.g., 5 minutes).
+Set a Threshold (e.g., Trigger alarm when CPU > 80%).
+Select the Alarm State Trigger:
+In Alarm (Threshold exceeded).
+OK (Normal condition).
+Insufficient Data (No metric data).
+Attach an SNS Topic for notifications (Email, SMS, or Lambda).
+Choose an Alarm Action (e.g., Stop, Reboot, or Scale Instance).
+Enter the Alarm Name.
+Click Review and Create.
+##AWS Elastic Beanstalk Deployment Guide
+1. Creating an Elastic Beanstalk Application
+Step 1: Create a New Application
+Navigate to Elastic Beanstalk Console → Create Application.
+Choose Environment Type:
+Web Server (for web apps).
+Worker (for background tasks).
+Enter Application Name.
+Set Environment Name (auto-generated, but can be modified).
+Choose a Domain Name and check availability.
+Select Platform (e.g., Node.js, .NET, Python).
+Choose Platform Branch and Version.
+Application Code: Use a Sample Application or upload your ZIP file.
+Choose Presets if needed.
+Step 2: IAM Service Roles
+Add Service Role:
+Navigate to IAM Console → Roles → Create Role.
+Choose EC2 as the trusted entity.
+Attach policies:
+Elastic Beanstalk Enhanced Health
+Managed Updates
+Custom Policies (if required)
+Roles Based on Environment Type:
+Web Tier (for frontend applications).
+Worker Tier (for background processing).
+Multi-container Docker (for Docker-based deployments).
+EC2 Key Pair: Choose an existing key pair or create a new one.
+Step 3: Configure Networking
+Choose VPC (Default or Custom VPC).
+Enable/Disable Public IP (based on security needs).
+Select AWS Region for deployment.
+(Optional) Attach an RDS Database if needed.
+Step 4: Instance and Security Configurations
+Select Root Volume Type (SSD, GP3, Magnetic).
+Configure Security Group:
+Allow SSH (Port 22) for remote access.
+Allow HTTP (Port 80) for web access.
+Enable Auto Scaling:
+On-Demand Instances.
+Select Instance Type (t2.micro, t3.medium, etc.).
+Default AMI ID is pre-selected.
+Step 5: Monitoring and Logs
+Use Default Monitoring Settings.
+Enable Enhanced Health Monitoring (optional).
+Step 6: Review and Create
+Review all configurations.
+Click Create Environment.
+Wait for deployment to complete.
+Uploading a Web Application
+Prepare a ZIP file of your web project.
+Navigate to Elastic Beanstalk Console → Select Application.
+Click Upload and Deploy.
+Select your ZIP file and deploy.
+Configuration Steps After Deployment
+Configure Environment Settings.
+Set Up Service Access (IAM, security roles).
+Configure Networking & Database (if required).
+Manage Instance Traffic & Auto Scaling.
+Set Up Monitoring, Logs, and Updates.
+Review & Apply Changes.
+##AWS IAM User, Group, and Policy Setup
+1. Creating an IAM User
+Navigate to IAM Console → Users.
+Click Create User.
+Enter a Username.
+Check Custom Password and set a password.
+Choose Permission Settings:
+Select Attach Policies Directly.
+Example: AmazonEC2FullAccess (for EC2 management).
+Click Review and Create.
+[Login Details]:
+IAM users log in via:
+https://<aws-account-id>.signin.aws.amazon.com/console
+Use the username and password to access the AWS console.
+2. Creating an IAM Group
+Navigate to IAM Console → User Groups.
+Click Create Group.
+Enter a Group Name.
+Select Users to add to the group.
+Attach necessary Policies (e.g., AmazonS3FullAccess, AmazonEC2ReadOnlyAccess).
+Click Create Group.
+3. Creating an IAM Policy
+Navigate to IAM Console → Policies.
+Click Create Policy.
+Select JSON Editor and define the policy rules.
+Example: Read-only access to EC2:
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "ec2:Describe*",
+      "Resource": "*"
+    }
+  ]
+}
+
+##Amazon RDS (SQL Database) Setup
+Steps to Create an RDS Database
+1. Create an RDS Database:
+Go to AWS RDS Console → Click Create Database.
+Choose Standard (manual settings) or Easy Create (default settings).
+Select Database Engine: MySQL.
+Choose Version (with or without Multi-AZ deployment).
+Enable RDS Extended Support (optional).
+Select Template: Production, Development, or Free Tier.
+Configure Availability Zone:
+Single Zone (for cost-effectiveness).
+Multi-AZ (for high availability).
+Set DB Instance Identifier (Database Name).
+Enter Master Username.
+Set Password (AWS-generated or User-defined).
+Choose Instance Class:
+Burstable Class (t4.micro, t3.micro for Free Tier).
+Configure Storage:
+Type: General Purpose (gp3/gp2) or Provisioned IOPS (io1).
+Allocation: 20GB (default).
+Enable Auto Scaling (if needed).
+Configure Connectivity:
+Choose VPC.
+Enable/Disable Public Access:
+EC2 → No (for security).
+Terminal → Yes (for direct access).
+Configure VPC Security Group:
+Allow port 3306 for MySQL.
+(Optional) Enable RDS Proxy.
+Set Certificate (default AWS SSL certificate).
+Set Backup Settings:
+Backup Period (default or custom).
+Delete Protection (Enable → No accidental deletion).
+Click Create Database and wait for it to initialize.
+Connecting to RDS from Different Environments
+Connecting to RDS from Different Environments
+1. Connect via Terminal (MariaDB Client)
+Download MariaDB Client:
+sudo yum install -y mariadb105
+Connect to RDS:
+mysql -h <endpoint> -u <username> -p <password> -P <port>
+Replace <endpoint> with the RDS endpoint (found in the AWS console).
+Default port: 3306.
+
+
 AWSTemplateFormatVersion: '2010-09-09'
 Description: EC2 Instance with Security Group
 
@@ -32,3 +314,6 @@ Outputs:
   InstanceId:
     Description: EC2 Instance ID
     Value: !Ref MyEC2Instance
+
+
+
